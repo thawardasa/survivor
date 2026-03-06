@@ -45,6 +45,7 @@
     <button class="tab-btn" onclick="switchAdminTab('cast', this)">🌴 Cast</button>
     <button class="tab-btn" onclick="switchAdminTab('players', this)">👥 Players</button>
     <button class="tab-btn" onclick="switchAdminTab('picks', this)">📋 Picks</button>
+    <button class="tab-btn" onclick="switchAdminTab('sync', this)">🔄 Wikipedia</button>
     <button class="tab-btn" onclick="switchAdminTab('settings', this)">⚙️ Settings</button>
   </div>
 
@@ -188,6 +189,35 @@
       </div>
       <div id="manualPickStatus" style="margin-top:10px"></div>
     </div>
+  </div>
+
+  <!-- ── Wikipedia Sync ───────────────────────────────────────────────── -->
+  <div id="atab-sync" class="tab-panel">
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">🔄 Sync Cast Status from Wikipedia</span>
+      </div>
+      <p style="font-size:.88rem;color:var(--text-dim);margin-bottom:16px">
+        Fetches the <strong>Survivor 50</strong> Wikipedia article and detects newly eliminated castaways.
+        Any new eliminations will automatically update the cast roster and eliminate pool players who picked them.
+      </p>
+      <button class="btn btn-primary" onclick="syncWikipedia()" id="wikiSyncBtn">🌐 Sync from Wikipedia Now</button>
+      <div id="wikiSyncResult" style="margin-top:14px"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">📸 Sync Cast Photos from Wikipedia</span>
+      </div>
+      <p style="font-size:.88rem;color:var(--text-dim);margin-bottom:16px">
+        Fetches headshot photos for all cast members using the Wikipedia REST API.
+        Only updates cast members who don't have a photo yet.
+      </p>
+      <button class="btn btn-secondary" onclick="syncPhotos()" id="photoSyncBtn">📸 Fetch Photos from Wikipedia</button>
+      <div id="photoSyncResult" style="margin-top:14px"></div>
+    </div>
+
   </div>
 
   <!-- ── Settings ─────────────────────────────────────────────────────── -->

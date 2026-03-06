@@ -157,33 +157,59 @@ function renderPlayerSection(title, players, allPicks, currentWeek, isEliminated
   `;
 }
 
-function renderCastPreview(activeCast, eliminatedCast) {
-  const renderCards = (list, elim) => list.map(c => {
-    const initial = c.name.charAt(0).toUpperCase();
-    const tribeHtml = c.tribe ? `<div class="cast-tribe">${esc(c.tribe)}</div>` : '';
-    const weekHtml = c.eliminated_week ? `<div class="cast-week">Wk ${c.eliminated_week}</div>` : '';
-    return `
-      <div class="cast-card ${elim ? 'eliminated' : 'active'}">
-        <div class="cast-avatar">${initial}</div>
-        <div class="cast-name">${esc(c.name)}</div>
-        ${tribeHtml}
-        <div class="cast-status">${elim ? '🪦 Voted Out' : '✅ Active'}</div>
-        ${weekHtml}
+function castCardHtml(c, elim) {
+  const initial = c.name.charAt(0).toUpperCase();
+  const tribeClass = c.tribe ? `tribe-${c.tribe.toLowerCase()}` : '';
+  const tribeHtml = c.tribe
+    ? `<div class="cast-tribe tribe-badge ${tribeClass}">${esc(c.tribe)}</div>` : '';
+  const infoHtml = (c.age || c.hometown)
+    ? `<div class="cast-info">${[c.age ? c.age + ' yrs' : '', esc(c.hometown || '')].filter(Boolean).join(' · ')}</div>` : '';
+  const weekHtml = c.eliminated_week ? `<div class="cast-week">Ep ${c.eliminated_week}</div>` : '';
+  const photoHtml = c.photo_url
+    ? `<img class="cast-photo" src="${esc(c.photo_url)}" alt="${esc(c.name)}" loading="lazy" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`
+    : '';
+  const avatarStyle = c.photo_url ? 'style="display:none"' : '';
+  return `
+    <div class="cast-card ${elim ? 'eliminated' : 'active'}">
+      <div class="cast-avatar-wrap">
+        ${photoHtml}
+        <div class="cast-avatar" ${avatarStyle}>${initial}</div>
       </div>
-    `;
-  }).join('');
+      <div class="cast-name">${esc(c.name)}</div>
+      ${tribeHtml}
+      ${infoHtml}
+      <div class="cast-status">${elim ? '🪦 Voted Out' : '✅ Active'}</div>
+      ${weekHtml}
+    </div>
+  `;
+}
+
+function renderCastPreview(activeCast, eliminatedCast) {
+  // Group active cast by tribe for the overview panel
+  const tribes = ['Cila', 'Kalo', 'Vatu'];
+  let castHtml = '';
+  for (const tribe of tribes) {
+    const members = activeCast.filter(c => c.tribe === tribe);
+    if (!members.length) continue;
+    const tribeClass = `tribe-${tribe.toLowerCase()}`;
+    castHtml += `<div class="tribe-label tribe-badge ${tribeClass}">${tribe}</div>`;
+    castHtml += `<div class="cast-grid" style="margin-bottom:10px">${members.map(c => castCardHtml(c, false)).join('')}</div>`;
+  }
+  // Any active without a tribe
+  const noTribe = activeCast.filter(c => !tribes.includes(c.tribe));
+  if (noTribe.length) castHtml += `<div class="cast-grid">${noTribe.map(c => castCardHtml(c, false)).join('')}</div>`;
 
   return `
     <div class="section">
       <div class="section-header">
         <span class="section-title">🌴 Survivor Cast <span class="count-badge">${activeCast.length} active</span></span>
       </div>
-      <div class="cast-grid">${renderCards(activeCast, false)}</div>
+      ${castHtml}
       ${eliminatedCast.length ? `
         <div class="section-header" style="margin-top:20px">
           <span class="section-title">🪦 Voted Out <span class="count-badge">${eliminatedCast.length}</span></span>
         </div>
-        <div class="cast-grid">${renderCards(eliminatedCast, true)}</div>
+        <div class="cast-grid">${eliminatedCast.map(c => castCardHtml(c, true)).join('')}</div>
       ` : ''}
     </div>
   `;
@@ -272,36 +298,43 @@ function renderPicksTable(gamePlayers, allWeeks, allPicks, castMembers) {
 
 /* ─── Cast Tab ────────────────────────────────────────────────────────── */
 function renderCastTab(activeCast, eliminatedCast) {
-  const renderCards = (list, elim) => {
-    if (!list.length) return `<div class="empty-state"><p>None yet.</p></div>`;
-    return `<div class="cast-grid">${list.map(c => {
-      const initial = c.name.charAt(0).toUpperCase();
-      const tribeHtml = c.tribe ? `<div class="cast-tribe">${esc(c.tribe)}</div>` : '';
-      const weekHtml = c.eliminated_week ? `<div class="cast-week">Voted out week ${c.eliminated_week}</div>` : '';
-      return `
-        <div class="cast-card ${elim ? 'eliminated' : 'active'}">
-          <div class="cast-avatar">${initial}</div>
-          <div class="cast-name">${esc(c.name)}</div>
-          ${tribeHtml}
-          <div class="cast-status">${elim ? '🪦 Voted Out' : '✅ Still In'}</div>
-          ${weekHtml}
+  const tribes = ['Cila', 'Kalo', 'Vatu'];
+  let activeHtml = '';
+  for (const tribe of tribes) {
+    const members = activeCast.filter(c => c.tribe === tribe);
+    if (!members.length) continue;
+    const tribeClass = `tribe-${tribe.toLowerCase()}`;
+    activeHtml += `
+      <div class="tribe-section">
+        <div class="tribe-header">
+          <span class="tribe-badge tribe-label ${tribeClass}">${tribe} Tribe</span>
+          <span class="count-badge">${members.length} remaining</span>
         </div>
-      `;
-    }).join('')}</div>`;
-  };
+        <div class="cast-grid">${members.map(c => castCardHtml(c, false)).join('')}</div>
+      </div>`;
+  }
+  const noTribe = activeCast.filter(c => !tribes.includes(c.tribe));
+  if (noTribe.length) {
+    activeHtml += `<div class="cast-grid">${noTribe.map(c => castCardHtml(c, false)).join('')}</div>`;
+  }
+  if (!activeCast.length) activeHtml = `<div class="empty-state"><p>No active castaways.</p></div>`;
+
+  const eliminatedHtml = eliminatedCast.length
+    ? `<div class="cast-grid">${eliminatedCast.map(c => castCardHtml(c, true)).join('')}</div>`
+    : `<div class="empty-state"><p>Nobody voted out yet.</p></div>`;
 
   return `
     <div class="section">
       <div class="section-header">
         <span class="section-title">✅ Still In the Game <span class="count-badge">${activeCast.length}</span></span>
       </div>
-      ${renderCards(activeCast, false)}
+      ${activeHtml}
     </div>
     <div class="section">
       <div class="section-header">
         <span class="section-title">🪦 Voted Out <span class="count-badge">${eliminatedCast.length}</span></span>
       </div>
-      ${renderCards(eliminatedCast, true)}
+      ${eliminatedHtml}
     </div>
   `;
 }

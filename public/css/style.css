@@ -282,34 +282,54 @@ a:hover { text-decoration: underline; }
   border-radius: var(--radius);
   padding: 12px;
   text-align: center;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, transform 0.15s;
 }
 
-.cast-card:hover { border-color: var(--accent); }
+.cast-card:hover { border-color: var(--accent); transform: translateY(-2px); }
 
 .cast-card.eliminated {
   opacity: 0.45;
   border-style: dashed;
 }
+.cast-card.eliminated:hover { transform: none; }
+
+/* Photo / Avatar */
+.cast-avatar-wrap {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  margin: 0 auto 8px;
+  overflow: hidden;
+  border: 2px solid var(--border);
+  background: var(--surface2);
+  position: relative;
+}
+
+.cast-card.active .cast-avatar-wrap  { border-color: var(--accent); }
+.cast-card.eliminated .cast-avatar-wrap { border-color: var(--red-dim); }
+
+.cast-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+}
 
 .cast-avatar {
-  width: 48px;
-  height: 48px;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   background: var(--surface2);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 8px;
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--accent);
-  border: 2px solid var(--border);
 }
 
 .cast-card.eliminated .cast-avatar {
-  background: var(--surface2);
-  border-color: var(--red-dim);
   color: var(--red-dim);
 }
 
@@ -317,12 +337,19 @@ a:hover { text-decoration: underline; }
   font-size: 0.82rem;
   font-weight: 600;
   margin-bottom: 3px;
+  line-height: 1.3;
 }
 
 .cast-card .cast-tribe {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
+  margin-bottom: 4px;
+}
+
+.cast-card .cast-info {
+  font-size: 0.68rem;
   color: var(--text-dim);
-  margin-bottom: 3px;
+  margin-bottom: 4px;
+  line-height: 1.3;
 }
 
 .cast-card .cast-status {
@@ -334,7 +361,38 @@ a:hover { text-decoration: underline; }
 
 .cast-card.active .cast-status { color: var(--green); }
 .cast-card.eliminated .cast-status { color: var(--red); }
-.cast-card .cast-week { font-size: 0.68rem; color: var(--text-dim); }
+.cast-card .cast-week { font-size: 0.68rem; color: var(--text-dim); margin-top: 2px; }
+
+/* ─── Tribe Badges & Sections ────────────────────────────────────────── */
+.tribe-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: inline-block;
+}
+
+.tribe-cila  { background: rgba(230,100,40,0.25);  color: #f0844a; border: 1px solid rgba(230,100,40,0.4); }
+.tribe-kalo  { background: rgba(60,180,160,0.22);  color: #4ecdb8; border: 1px solid rgba(60,180,160,0.4); }
+.tribe-vatu  { background: rgba(210,50,160,0.22);  color: #e060c0; border: 1px solid rgba(210,50,160,0.4); }
+
+.tribe-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 4px 12px;
+  margin-bottom: 8px;
+  display: inline-block;
+}
+
+.tribe-section { margin-bottom: 20px; }
+.tribe-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
 
 /* ─── Picks Table ────────────────────────────────────────────────────── */
 .table-scroll { overflow-x: auto; }
@@ -573,17 +631,7 @@ a:hover { text-decoration: underline; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
 
-/* ─── Tribe Colors ───────────────────────────────────────────────────── */
-.tribe-badge {
-  font-size: 0.68rem;
-  font-weight: 700;
-  padding: 1px 7px;
-  border-radius: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  display: inline-block;
-  margin-top: 2px;
-}
+/* ─── Tribe Colors (legacy, kept for admin panel) ────────────────────── */
 
 /* ─── Responsive ─────────────────────────────────────────────────────── */
 @media (max-width: 600px) {

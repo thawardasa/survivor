@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const Database = require('better-sqlite3');
 const fs = require('fs');
+const https = require('https');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,6 +28,10 @@ db.exec(`
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     name             TEXT    NOT NULL UNIQUE,
     tribe            TEXT    DEFAULT '',
+    age              INTEGER,
+    hometown         TEXT    DEFAULT '',
+    photo_url        TEXT    DEFAULT '',
+    wikipedia_slug   TEXT    DEFAULT '',
     is_active        INTEGER DEFAULT 1,
     eliminated_week  INTEGER,
     created_at       DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -60,14 +65,100 @@ db.exec(`
   );
 `);
 
-// Seed defaults
+// Migrate: add new columns if they don't exist yet (for existing DBs)
+for (const sql of [
+  'ALTER TABLE cast_members ADD COLUMN age INTEGER',
+  'ALTER TABLE cast_members ADD COLUMN hometown TEXT DEFAULT ""',
+  'ALTER TABLE cast_members ADD COLUMN photo_url TEXT DEFAULT ""',
+  'ALTER TABLE cast_members ADD COLUMN wikipedia_slug TEXT DEFAULT ""',
+]) {
+  try { db.exec(sql); } catch (_) { /* already exists */ }
+}
+
+// ─── Seed Defaults ────────────────────────────────────────────────────────────
 const setSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
 setSetting.run('admin_password', 'survivor50');
-setSetting.run('season_name', 'Survivor 50');
+setSetting.run('season_name', 'Survivor 50: In the Hands of the Fans');
 setSetting.run('season_subtitle', 'Prediction Pool');
 
 const insertWeek = db.prepare('INSERT OR IGNORE INTO weeks (week_number, picks_allowed, is_current) VALUES (?, ?, ?)');
-insertWeek.run(1, 1, 1);
+insertWeek.run(1, 1, 0);
+insertWeek.run(2, 2, 0);
+insertWeek.run(3, 1, 1);
+
+// ─── Seed Survivor 50 Cast ────────────────────────────────────────────────────
+// Data sourced from Wikipedia / CBS — updated through Episode 2 (aired March 4, 2026)
+// Columns: name, tribe, age, hometown, wikipedia_slug, is_active, eliminated_week
+const castSeed = [
+  // CILA TRIBE (Orange)
+  ['Christian Hubicki',          'Cila', 39, 'Tallahassee, FL',      'Christian_Hubicki',           1, null],
+  ['Cirie Fields',               'Cila', 54, 'Jersey City, NJ',      'Cirie_Fields',                1, null],
+  ['Emily Flippen',              'Cila', 30, 'Laurel, MD',           'Emily_Flippen',               1, null],
+  ['Joe Hunter',                 'Cila', 45, 'West Sacramento, CA',  '',                            1, null],
+  ['Ozzy Lusth',                 'Cila', 43, 'Guanajuato, Mexico',   'Oscar_Lusth',                 1, null],
+  ['Rick Devens',                'Cila', 41, 'Macon, GA',            'Rick_Devens',                 1, null],
+  ['Savannah Louie',             'Cila', 31, 'Atlanta, GA',          '',                            0,    2],
+  ['Jenna Lewis-Dougherty',      'Cila', 47, 'Woodland, CA',         'Jenna_Lewis_(Survivor)',      0,    1],
+  // KALO TRIBE (Teal)
+  ['Charlie Davis',              'Kalo', 27, 'Boston, MA',           '',                            1, null],
+  ['Chrissy Hofbeck',            'Kalo', 54, 'The Villages, FL',     'Chrissy_Hofbeck',             1, null],
+  ['Coach Wade',                 'Kalo', 53, 'Susanville, CA',       'Benjamin_Wade_(Survivor)',    1, null],
+  ['Dee Valladares',             'Kalo', 28, 'Miami, FL',            'Dee_Valladares',              1, null],
+  ['Jonathan Young',             'Kalo', 32, 'Gulf Shores, AL',      '',                            1, null],
+  ['Kamilla Karthigesu',         'Kalo', 31, 'Foster City, CA',      '',                            1, null],
+  ['Mike White',                 'Kalo', 54, 'Hanalei, HI',          'Mike_White_(filmmaker)',      1, null],
+  ['Tiffany Nicole Ervin',       'Kalo', 34, 'Los Angeles, CA',      '',                            1, null],
+  // VATU TRIBE (Pink/Magenta)
+  ['Angelina Keeley',            'Vatu', 35, 'San Diego, CA',        'Angelina_Keeley',             1, null],
+  ['Aubry Bracco',               'Vatu', 39, 'Hampton Falls, NH',    'Aubry_Bracco',                1, null],
+  ['Colby Donaldson',            'Vatu', 51, 'Austin, TX',           'Colby_Donaldson',             1, null],
+  ['Genevieve Mushaluk',         'Vatu', 34, 'Winnipeg, MB',         '',                            1, null],
+  ['Q Burdette',                 'Vatu', 31, 'Germantown, TN',       'Quintavius_Burdette',         1, null],
+  ['Rizo Velovic',               'Vatu', 25, 'Yonkers, NY',          '',                            1, null],
+  ['Stephenie LaGrossa Kendrick','Vatu', 45, 'Dunedin, FL',          'Stephenie_LaGrossa',          1, null],
+  ['Kyle Fraser',                'Vatu', 31, 'Brooklyn, NY',         '',                            0,    1],
+];
+
+const insertCast = db.prepare(
+  'INSERT OR IGNORE INTO cast_members (name, tribe, age, hometown, wikipedia_slug, is_active, eliminated_week) VALUES (?, ?, ?, ?, ?, ?, ?)'
+);
+const updateCastInfo = db.prepare(`
+  UPDATE cast_members
+  SET tribe = ?, age = COALESCE(age, ?),
+      hometown = CASE WHEN hometown = '' OR hometown IS NULL THEN ? ELSE hometown END,
+      wikipedia_slug = CASE WHEN wikipedia_slug = '' OR wikipedia_slug IS NULL THEN ? ELSE wikipedia_slug END
+  WHERE name = ?
+`);
+
+for (const [name, tribe, age, hometown, wikipedia_slug, is_active, eliminated_week] of castSeed) {
+  insertCast.run(name, tribe, age, hometown, wikipedia_slug, is_active, eliminated_week);
+  updateCastInfo.run(tribe, age, hometown, wikipedia_slug, name);
+}
+
+// ─── Seed Pool Players ────────────────────────────────────────────────────────
+// From the prediction pool spreadsheet
+const playerSeed = [
+  // [name, is_active, eliminated_week]
+  ['Jenna',    1, null],
+  ['Marissa',  1, null],
+  ['Anna D',   1, null],
+  ['Greg',     1, null],
+  ['Jason',    1, null],
+  ['Mason',    1, null],
+  ['Fish',     1, null],
+  ['Emily',    1, null],
+  ['AT',       1, null],
+  ['Anna F',   1, null],
+  ['Michael',  1, null],
+  ['Natalie',  0, 1],   // Eliminated Ep1 — picked Kyle Fraser (med-evac)
+];
+
+const insertPlayer = db.prepare(
+  'INSERT OR IGNORE INTO game_players (name, is_active, eliminated_week) VALUES (?, ?, ?)'
+);
+for (const [name, is_active, eliminated_week] of playerSeed) {
+  insertPlayer.run(name, is_active, eliminated_week);
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getCurrentWeek() {
@@ -78,7 +169,7 @@ function getFullState() {
   const currentWeek = getCurrentWeek() || { week_number: 1, picks_allowed: 1 };
 
   const castMembers = db.prepare(`
-    SELECT * FROM cast_members ORDER BY is_active DESC, name ASC
+    SELECT * FROM cast_members ORDER BY is_active DESC, tribe ASC, name ASC
   `).all();
 
   const gamePlayers = db.prepare(`
@@ -89,7 +180,6 @@ function getFullState() {
     SELECT * FROM weeks ORDER BY week_number ASC
   `).all();
 
-  // All picks with joined names
   const allPicks = db.prepare(`
     SELECT p.*, gp.name as player_name, cm.name as cast_name, cm.is_active as cast_is_active
     FROM picks p
@@ -101,14 +191,39 @@ function getFullState() {
   return { currentWeek, castMembers, gamePlayers, allWeeks, allPicks };
 }
 
+// ─── Wikipedia / Photo Helpers ────────────────────────────────────────────────
+function httpsGet(url) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, {
+      headers: {
+        'User-Agent': 'SurvivorPredictionPool/1.0 (Node.js; open-source prediction pool app)',
+        'Accept': 'application/json',
+      },
+    }, (res) => {
+      // Follow redirects
+      if ((res.statusCode === 301 || res.statusCode === 302) && res.headers.location) {
+        resolve(httpsGet(res.headers.location));
+        return;
+      }
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        let body;
+        try { body = JSON.parse(data); } catch (_) { body = data; }
+        resolve({ statusCode: res.statusCode, body });
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(8000, () => { req.destroy(); reject(new Error('Request timed out')); });
+  });
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-// Full state for the landing page
 app.get('/api/state', (req, res) => {
   res.json(getFullState());
 });
 
-// Available picks for a specific game player (cast members not yet picked)
 app.get('/api/available-picks/:gamePlayerId', (req, res) => {
   const { gamePlayerId } = req.params;
   const currentWeek = getCurrentWeek();
@@ -119,12 +234,6 @@ app.get('/api/available-picks/:gamePlayerId', (req, res) => {
   if (!player) return res.status(404).json({ error: 'Player not found' });
   if (!player.is_active) return res.status(400).json({ error: 'Player is eliminated from the pool' });
 
-  // Check if player already has a pick this week
-  const existingPick = db.prepare(
-    'SELECT p.*, cm.name as cast_name FROM picks p JOIN cast_members cm ON p.cast_member_id = cm.id WHERE p.game_player_id = ? AND p.week_number = ?'
-  ).get(gamePlayerId, currentWeek.week_number);
-
-  // How many picks has this player made this week
   const picksThisWeek = db.prepare(
     'SELECT COUNT(*) as cnt FROM picks WHERE game_player_id = ? AND week_number = ?'
   ).get(gamePlayerId, currentWeek.week_number);
@@ -132,14 +241,13 @@ app.get('/api/available-picks/:gamePlayerId', (req, res) => {
   const picksMadeThisWeek = picksThisWeek.cnt;
   const picksRemaining = currentWeek.picks_allowed - picksMadeThisWeek;
 
-  // Cast members still active AND not yet picked by this player
   const available = db.prepare(`
     SELECT cm.* FROM cast_members cm
     WHERE cm.is_active = 1
       AND cm.id NOT IN (
         SELECT cast_member_id FROM picks WHERE game_player_id = ?
       )
-    ORDER BY cm.name ASC
+    ORDER BY cm.tribe ASC, cm.name ASC
   `).all(gamePlayerId);
 
   res.json({
@@ -156,7 +264,6 @@ app.get('/api/available-picks/:gamePlayerId', (req, res) => {
   });
 });
 
-// Submit a pick
 app.post('/api/picks', (req, res) => {
   const { gamePlayerId, castMemberId } = req.body;
   if (!gamePlayerId || !castMemberId) {
@@ -175,13 +282,11 @@ app.post('/api/picks', (req, res) => {
   if (!castMember) return res.status(404).json({ error: 'Cast member not found' });
   if (!castMember.is_active) return res.status(400).json({ error: 'That Survivor has already been voted out' });
 
-  // Check player hasn't already picked this cast member
   const alreadyPicked = db.prepare(
     'SELECT id FROM picks WHERE game_player_id = ? AND cast_member_id = ?'
   ).get(gamePlayerId, castMemberId);
   if (alreadyPicked) return res.status(400).json({ error: 'You already picked that Survivor in a previous week' });
 
-  // Check picks allowed this week
   const picksThisWeek = db.prepare(
     'SELECT COUNT(*) as cnt FROM picks WHERE game_player_id = ? AND week_number = ?'
   ).get(gamePlayerId, currentWeek.week_number);
@@ -212,7 +317,6 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-// Get settings
 app.get('/api/admin/settings', requireAdmin, (req, res) => {
   const rows = db.prepare('SELECT * FROM settings').all();
   const s = {};
@@ -220,7 +324,6 @@ app.get('/api/admin/settings', requireAdmin, (req, res) => {
   res.json(s);
 });
 
-// Update settings (season name, subtitle, password)
 app.post('/api/admin/settings', requireAdmin, (req, res) => {
   const { season_name, season_subtitle, admin_password } = req.body;
   const update = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
@@ -230,12 +333,13 @@ app.post('/api/admin/settings', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
-// Add a cast member
 app.post('/api/admin/cast', requireAdmin, (req, res) => {
-  const { name, tribe } = req.body;
+  const { name, tribe, age, hometown, wikipedia_slug } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
   try {
-    const r = db.prepare('INSERT INTO cast_members (name, tribe) VALUES (?, ?)').run(name.trim(), tribe?.trim() || '');
+    const r = db.prepare(
+      'INSERT INTO cast_members (name, tribe, age, hometown, wikipedia_slug) VALUES (?, ?, ?, ?, ?)'
+    ).run(name.trim(), tribe?.trim() || '', age || null, hometown?.trim() || '', wikipedia_slug?.trim() || '');
     res.json({ success: true, id: r.lastInsertRowid });
   } catch (err) {
     if (err.message.includes('UNIQUE')) return res.status(400).json({ error: 'Cast member already exists' });
@@ -243,16 +347,23 @@ app.post('/api/admin/cast', requireAdmin, (req, res) => {
   }
 });
 
-// Update a cast member
 app.put('/api/admin/cast/:id', requireAdmin, (req, res) => {
-  const { name, tribe } = req.body;
+  const { name, tribe, age, hometown, wikipedia_slug, photo_url } = req.body;
   const { id } = req.params;
-  db.prepare('UPDATE cast_members SET name = COALESCE(?, name), tribe = COALESCE(?, tribe) WHERE id = ?')
-    .run(name || null, tribe !== undefined ? tribe : null, id);
+  db.prepare(`
+    UPDATE cast_members SET
+      name = COALESCE(?, name),
+      tribe = COALESCE(?, tribe),
+      age = COALESCE(?, age),
+      hometown = COALESCE(?, hometown),
+      wikipedia_slug = COALESCE(?, wikipedia_slug),
+      photo_url = COALESCE(?, photo_url)
+    WHERE id = ?
+  `).run(name || null, tribe !== undefined ? tribe : null, age || null,
+         hometown || null, wikipedia_slug || null, photo_url || null, id);
   res.json({ success: true });
 });
 
-// Delete a cast member (only if no picks reference them)
 app.delete('/api/admin/cast/:id', requireAdmin, (req, res) => {
   const picks = db.prepare('SELECT COUNT(*) as cnt FROM picks WHERE cast_member_id = ?').get(req.params.id);
   if (picks.cnt > 0) return res.status(400).json({ error: 'Cannot delete — picks reference this cast member' });
@@ -260,7 +371,6 @@ app.delete('/api/admin/cast/:id', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
-// Eliminate a cast member (vote them out)
 app.post('/api/admin/cast/:id/eliminate', requireAdmin, (req, res) => {
   const { week } = req.body;
   const castMember = db.prepare('SELECT * FROM cast_members WHERE id = ?').get(req.params.id);
@@ -271,7 +381,6 @@ app.post('/api/admin/cast/:id/eliminate', requireAdmin, (req, res) => {
   db.prepare('UPDATE cast_members SET is_active = 0, eliminated_week = ? WHERE id = ?')
     .run(eliminationWeek, req.params.id);
 
-  // Eliminate game players who picked this cast member this week
   const affectedPicks = db.prepare(`
     SELECT p.game_player_id, gp.name as player_name
     FROM picks p
@@ -296,13 +405,149 @@ app.post('/api/admin/cast/:id/eliminate', requireAdmin, (req, res) => {
   });
 });
 
-// Restore a cast member (if voted out by mistake)
 app.post('/api/admin/cast/:id/restore', requireAdmin, (req, res) => {
   db.prepare('UPDATE cast_members SET is_active = 1, eliminated_week = NULL WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
 
-// Add a game player
+// ─── Wikipedia Photo Sync ─────────────────────────────────────────────────────
+
+// Fetch photo for a single cast member from Wikipedia
+app.post('/api/admin/cast/:id/fetch-photo', requireAdmin, async (req, res) => {
+  const castMember = db.prepare('SELECT * FROM cast_members WHERE id = ?').get(req.params.id);
+  if (!castMember) return res.status(404).json({ error: 'Cast member not found' });
+
+  const slug = castMember.wikipedia_slug || castMember.name.replace(/\s+/g, '_');
+  try {
+    const result = await httpsGet(
+      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(slug)}`
+    );
+    const photoUrl = result.body?.thumbnail?.source || result.body?.originalimage?.source;
+    if (photoUrl) {
+      db.prepare('UPDATE cast_members SET photo_url = ? WHERE id = ?').run(photoUrl, castMember.id);
+      res.json({ success: true, photo_url: photoUrl });
+    } else {
+      res.json({ success: false, message: 'No photo found on Wikipedia for this person' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Sync photos for all cast members that don't have one yet
+app.post('/api/admin/sync-photos', requireAdmin, async (req, res) => {
+  const members = db.prepare(
+    "SELECT * FROM cast_members WHERE photo_url = '' OR photo_url IS NULL"
+  ).all();
+
+  const results = [];
+  for (const member of members) {
+    const slug = member.wikipedia_slug || member.name.replace(/\s+/g, '_');
+    try {
+      const result = await httpsGet(
+        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(slug)}`
+      );
+      const photoUrl = result.body?.thumbnail?.source;
+      if (photoUrl) {
+        db.prepare('UPDATE cast_members SET photo_url = ? WHERE id = ?').run(photoUrl, member.id);
+        results.push({ name: member.name, status: 'ok', photo_url: photoUrl });
+      } else {
+        results.push({ name: member.name, status: 'no_photo' });
+      }
+    } catch (err) {
+      results.push({ name: member.name, status: 'error', message: err.message });
+    }
+    // Be polite to the Wikipedia API
+    await new Promise(r => setTimeout(r, 300));
+  }
+
+  res.json({ success: true, results });
+});
+
+// ─── Wikipedia Cast Status Sync ───────────────────────────────────────────────
+// Parses the Survivor 50 Wikipedia article to find newly eliminated castaways
+app.post('/api/admin/sync-wikipedia', requireAdmin, async (req, res) => {
+  try {
+    const apiUrl = 'https://en.wikipedia.org/w/api.php?' + [
+      'action=query',
+      'titles=Survivor_50%3A_In_the_Hands_of_the_Fans',
+      'prop=revisions',
+      'rvprop=content',
+      'rvslots=main',
+      'format=json',
+      'formatversion=2',
+    ].join('&');
+
+    const result = await httpsGet(apiUrl);
+    if (result.statusCode !== 200) {
+      return res.status(502).json({ error: `Wikipedia API returned HTTP ${result.statusCode}` });
+    }
+
+    const wikitext = result.body?.query?.pages?.[0]?.revisions?.[0]?.slots?.main?.content;
+    if (!wikitext) {
+      return res.status(502).json({ error: 'Could not retrieve Wikipedia article content' });
+    }
+
+    const castMembers = db.prepare('SELECT * FROM cast_members').all();
+    const updates = [];
+
+    // Split wikitext into table rows (rows are separated by "|-")
+    // Then for each cast member, find the row containing their name and check elimination status
+    const tableRows = wikitext.split(/\n\|\-/);
+
+    for (const member of castMembers) {
+      // Find the row containing this cast member's name
+      const escapedName = member.name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+      const namePattern = new RegExp(escapedName.replace(/\s+/g, '[\\s_]+'), 'i');
+
+      const matchingRow = tableRows.find(row => namePattern.test(row));
+      if (!matchingRow) continue;
+
+      const isVotedOut = /voted.?out|medically.?evacuated|eliminated/i.test(matchingRow);
+      const isStillIn  = /still.?in|active|remains/i.test(matchingRow);
+
+      if (isVotedOut && member.is_active) {
+        // Try to extract episode/week number
+        const epMatch = matchingRow.match(/[Ee]pisode\s*(\d+)|[Ee]p\.?\s*(\d+)|[Ww]eek\s*(\d+)/);
+        const weekNum = epMatch ? parseInt(epMatch[1] || epMatch[2] || epMatch[3]) : null;
+
+        db.prepare('UPDATE cast_members SET is_active = 0, eliminated_week = ? WHERE id = ?')
+          .run(weekNum || getCurrentWeek()?.week_number || 1, member.id);
+
+        // Eliminate pool players who picked this person this week
+        if (weekNum) {
+          const affected = db.prepare(`
+            SELECT p.game_player_id, gp.name as player_name
+            FROM picks p JOIN game_players gp ON p.game_player_id = gp.id
+            WHERE p.cast_member_id = ? AND p.week_number = ? AND gp.is_active = 1
+          `).all(member.id, weekNum);
+          for (const a of affected) {
+            db.prepare('UPDATE game_players SET is_active = 0, eliminated_week = ? WHERE id = ?')
+              .run(weekNum, a.game_player_id);
+          }
+        }
+
+        updates.push({ name: member.name, action: 'eliminated', week: weekNum });
+      } else if (isStillIn && !member.is_active) {
+        // Restoration (e.g., edit correction on Wikipedia) — flag it but don't auto-restore
+        updates.push({ name: member.name, action: 'note_still_active_on_wiki' });
+      }
+    }
+
+    res.json({
+      success: true,
+      wikitextLength: wikitext.length,
+      updates,
+      message: updates.length
+        ? `Found ${updates.filter(u => u.action === 'eliminated').length} new elimination(s)`
+        : 'No new eliminations detected — cast status is up to date',
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Player Management ────────────────────────────────────────────────────────
 app.post('/api/admin/players', requireAdmin, (req, res) => {
   const { name } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
@@ -315,7 +560,6 @@ app.post('/api/admin/players', requireAdmin, (req, res) => {
   }
 });
 
-// Delete a game player (only if no picks)
 app.delete('/api/admin/players/:id', requireAdmin, (req, res) => {
   const picks = db.prepare('SELECT COUNT(*) as cnt FROM picks WHERE game_player_id = ?').get(req.params.id);
   if (picks.cnt > 0) return res.status(400).json({ error: 'Cannot delete — this player has picks recorded' });
@@ -323,18 +567,16 @@ app.delete('/api/admin/players/:id', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
-// Restore a game player
 app.post('/api/admin/players/:id/restore', requireAdmin, (req, res) => {
   db.prepare('UPDATE game_players SET is_active = 1, eliminated_week = NULL WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
 
-// Manage weeks
+// ─── Week Management ──────────────────────────────────────────────────────────
 app.get('/api/admin/weeks', requireAdmin, (req, res) => {
   res.json(db.prepare('SELECT * FROM weeks ORDER BY week_number').all());
 });
 
-// Add or update a week
 app.post('/api/admin/weeks', requireAdmin, (req, res) => {
   const { week_number, picks_allowed } = req.body;
   if (!week_number) return res.status(400).json({ error: 'week_number is required' });
@@ -346,17 +588,14 @@ app.post('/api/admin/weeks', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
-// Set current week
 app.post('/api/admin/weeks/:weekNumber/set-current', requireAdmin, (req, res) => {
   const wn = parseInt(req.params.weekNumber);
-  // Ensure the week exists
   db.prepare('INSERT OR IGNORE INTO weeks (week_number, picks_allowed, is_current) VALUES (?, 1, 0)').run(wn);
   db.prepare('UPDATE weeks SET is_current = 0').run();
   db.prepare('UPDATE weeks SET is_current = 1 WHERE week_number = ?').run(wn);
   res.json({ success: true });
 });
 
-// Mark week as completed / open
 app.post('/api/admin/weeks/:weekNumber/complete', requireAdmin, (req, res) => {
   const { completed } = req.body;
   db.prepare('UPDATE weeks SET completed = ? WHERE week_number = ?')
@@ -364,13 +603,12 @@ app.post('/api/admin/weeks/:weekNumber/complete', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
-// Delete a pick (admin correction)
+// ─── Pick Management ──────────────────────────────────────────────────────────
 app.delete('/api/admin/picks/:id', requireAdmin, (req, res) => {
   db.prepare('DELETE FROM picks WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
 
-// Admin: add a pick manually (for corrections)
 app.post('/api/admin/picks', requireAdmin, (req, res) => {
   const { gamePlayerId, castMemberId, weekNumber } = req.body;
   try {
@@ -384,7 +622,7 @@ app.post('/api/admin/picks', requireAdmin, (req, res) => {
   }
 });
 
-// Get season settings (public, for page title etc.)
+// ─── Season Settings (public) ─────────────────────────────────────────────────
 app.get('/api/season', (req, res) => {
   const rows = db.prepare("SELECT * FROM settings WHERE key IN ('season_name','season_subtitle')").all();
   const s = {};
@@ -392,7 +630,7 @@ app.get('/api/season', (req, res) => {
   res.json(s);
 });
 
-// Catch-all: serve index.html for client-side routing
+// Catch-all: serve index.html
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });

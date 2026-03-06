@@ -186,11 +186,16 @@ function renderCastTab() {
   const active = castMembers.filter(c => c.is_active);
   const eliminated = castMembers.filter(c => !c.is_active);
 
-  const rows = [...active, ...eliminated].map(c => `
-    <tr>
-      <td><strong>${esc(c.name)}</strong></td>
+  const rows = [...active, ...eliminated].map(c => {
+    const photoHtml = c.photo_url
+      ? `<img src="${esc(c.photo_url)}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px" alt="${esc(c.name)}">`
+      : `<span style="display:inline-block;width:32px;height:32px;border-radius:50%;background:var(--surface2);text-align:center;line-height:32px;font-weight:700;color:var(--accent);margin-right:6px;vertical-align:middle">${c.name.charAt(0)}</span>`;
+    const info = [c.age ? c.age + ' yrs' : '', esc(c.hometown || '')].filter(Boolean).join(' · ');
+    return `
+    <tr class="${c.is_active ? '' : 'eliminated-row'}">
+      <td>${photoHtml}<strong>${esc(c.name)}</strong>${info ? `<br><small style="color:var(--text-dim)">${info}</small>` : ''}</td>
       <td>${esc(c.tribe) || '<span style="color:var(--text-dim)">—</span>'}</td>
-      <td>${c.is_active ? '✅ Active' : `🪦 Out (Wk ${c.eliminated_week || '?'})`}</td>
+      <td>${c.is_active ? '✅ Active' : `🪦 Out (Ep ${c.eliminated_week || '?'})`}</td>
       <td style="display:flex;gap:6px;flex-wrap:wrap">
         ${c.is_active
           ? `<button class="btn btn-danger btn-sm" onclick="quickEliminateCast(${c.id}, '${esc(c.name)}')">Vote Out</button>`
@@ -199,7 +204,7 @@ function renderCastTab() {
         <button class="btn btn-danger btn-sm" onclick="deleteCast(${c.id}, '${esc(c.name)}')">Delete</button>
       </td>
     </tr>
-  `).join('');
+  `}).join('');
 
   document.getElementById('castRosterList').innerHTML = castMembers.length ? `
     <div class="table-scroll">
@@ -433,6 +438,73 @@ async function changePassword() {
     document.getElementById('newAdminPw').value = '';
   } catch (err) {
     statusEl.innerHTML = `<div class="alert alert-error">❌ ${err.message}</div>`;
+  }
+}
+
+/* ─── Wikipedia Sync ──────────────────────────────────────────────────── */
+async function syncWikipedia() {
+  const btn = document.getElementById('wikiSyncBtn');
+  const resultEl = document.getElementById('wikiSyncResult');
+  btn.disabled = true;
+  btn.textContent = '⏳ Syncing…';
+  resultEl.innerHTML = '';
+
+  try {
+    const result = await adminApi('/api/admin/sync-wikipedia', { method: 'POST', body: {} });
+    const updates = result.updates || [];
+    const eliminations = updates.filter(u => u.action === 'eliminated');
+
+    let html = `<div class="alert alert-${eliminations.length ? 'success' : 'info'}">`;
+    html += `✅ ${result.message}<br>`;
+    html += `<small>Wikipedia article length: ${(result.wikitextLength || 0).toLocaleString()} chars</small>`;
+    if (eliminations.length) {
+      html += `<ul style="margin-top:8px;padding-left:18px">`;
+      eliminations.forEach(u => {
+        html += `<li><strong>${esc(u.name)}</strong> — eliminated${u.week ? ' episode ' + u.week : ''}</li>`;
+      });
+      html += `</ul>`;
+    }
+    html += `</div>`;
+    resultEl.innerHTML = html;
+
+    if (eliminations.length) await loadAdminData();
+  } catch (err) {
+    resultEl.innerHTML = `<div class="alert alert-error">❌ ${err.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🌐 Sync from Wikipedia Now';
+  }
+}
+
+async function syncPhotos() {
+  const btn = document.getElementById('photoSyncBtn');
+  const resultEl = document.getElementById('photoSyncResult');
+  btn.disabled = true;
+  btn.textContent = '⏳ Fetching photos…';
+  resultEl.innerHTML = '<div class="alert alert-info">Fetching photos from Wikipedia — this may take a moment…</div>';
+
+  try {
+    const result = await adminApi('/api/admin/sync-photos', { method: 'POST', body: {} });
+    const found    = (result.results || []).filter(r => r.status === 'ok');
+    const notFound = (result.results || []).filter(r => r.status !== 'ok');
+
+    let html = `<div class="alert alert-${found.length ? 'success' : 'info'}">`;
+    html += `Found photos for <strong>${found.length}</strong> cast member(s).<br>`;
+    if (found.length) {
+      html += `<small>${found.map(r => esc(r.name)).join(', ')}</small>`;
+    }
+    if (notFound.length) {
+      html += `<br><small style="color:var(--text-dim)">No photo found for: ${notFound.map(r => esc(r.name)).join(', ')}</small>`;
+    }
+    html += `</div>`;
+    resultEl.innerHTML = html;
+
+    if (found.length) await loadAdminData();
+  } catch (err) {
+    resultEl.innerHTML = `<div class="alert alert-error">❌ ${err.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📸 Fetch Photos from Wikipedia';
   }
 }
 
