@@ -1,0 +1,14 @@
+{
+  "name": "survivor-prediction-pool",
+  "version": "1.0.0",
+  "description": "Survivor season prediction pool web app",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3",
+    "express": "^4.18.2"
+  }
+}

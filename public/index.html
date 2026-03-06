@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Survivor Prediction Pool</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔥</text></svg>" />
+</head>
+<body>
+
+<!-- ─── Header ─────────────────────────────────────────────────────────── -->
+<header class="site-header">
+  <div class="header-inner">
+    <div>
+      <div class="site-title" id="seasonName">🔥 Survivor Prediction Pool</div>
+      <div class="site-subtitle" id="seasonSubtitle">Loading...</div>
+    </div>
+    <nav class="header-nav">
+      <button class="btn btn-primary" onclick="openPickModal()">📝 Submit Pick</button>
+      <a href="/admin.html" class="btn btn-secondary">⚙️ Admin</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ─── Main ────────────────────────────────────────────────────────────── -->
+<main class="main-content" id="mainContent">
+  <div class="loading">Loading game data…</div>
+</main>
+
+<!-- ─── Submit Pick Modal ──────────────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="pickModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">📝 Submit Your Pick</span>
+      <button class="modal-close" onclick="closePickModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="pickStep1">
+        <div class="form-group">
+          <label>Who are you?</label>
+          <select class="form-control" id="pickPlayerSelect" onchange="loadAvailablePicks()">
+            <option value="">— Select your name —</option>
+          </select>
+        </div>
+        <div id="pickStep1Status"></div>
+      </div>
+      <div id="pickStep2" class="hidden">
+        <div id="pickWeekInfo" class="alert alert-info" style="margin-bottom:14px"></div>
+        <div class="form-group">
+          <label>Pick your Survivor</label>
+          <select class="form-control" id="pickCastSelect">
+            <option value="">— Select a cast member —</option>
+          </select>
+          <div class="form-hint" id="picksHint"></div>
+        </div>
+        <div id="existingPicksArea"></div>
+        <div id="pickFormStatus"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closePickModal()">Cancel</button>
+      <button class="btn btn-primary" id="submitPickBtn" onclick="submitPick()" style="display:none">Submit Pick ✓</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+</body>
+</html>

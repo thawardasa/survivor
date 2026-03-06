@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — Survivor Pool</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚙️</text></svg>" />
+</head>
+<body>
+
+<!-- ─── Header ─────────────────────────────────────────────────────────── -->
+<header class="site-header">
+  <div class="header-inner">
+    <div>
+      <div class="site-title">⚙️ Admin Panel</div>
+      <div class="site-subtitle" id="adminSeasonName">Survivor Pool</div>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="btn btn-secondary">← Back to Pool</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ─── Login Gate ──────────────────────────────────────────────────────── -->
+<div id="loginGate" class="main-content" style="max-width:420px">
+  <div style="margin-top:40px">
+    <div class="section-header"><span class="section-title">🔐 Admin Login</span></div>
+    <div class="form-group" style="margin-top:16px">
+      <label>Admin Password</label>
+      <input type="password" class="form-control" id="adminPwInput" placeholder="Enter password…" onkeydown="if(event.key==='Enter')adminLogin()" />
+    </div>
+    <div id="loginStatus"></div>
+    <button class="btn btn-primary btn-lg" onclick="adminLogin()" style="width:100%">Login</button>
+  </div>
+</div>
+
+<!-- ─── Admin Content ───────────────────────────────────────────────────── -->
+<main class="main-content hidden" id="adminContent">
+
+  <div id="adminAlert"></div>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchAdminTab('week', this)">📅 Week</button>
+    <button class="tab-btn" onclick="switchAdminTab('cast', this)">🌴 Cast</button>
+    <button class="tab-btn" onclick="switchAdminTab('players', this)">👥 Players</button>
+    <button class="tab-btn" onclick="switchAdminTab('picks', this)">📋 Picks</button>
+    <button class="tab-btn" onclick="switchAdminTab('settings', this)">⚙️ Settings</button>
+  </div>
+
+  <!-- ── Week Management ──────────────────────────────────────────────── -->
+  <div id="atab-week" class="tab-panel active">
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">📅 Current Week</span>
+      </div>
+      <div id="currentWeekInfo" class="alert alert-info" style="margin-bottom:16px"></div>
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+        <div class="form-group" style="margin:0;flex:1;min-width:140px">
+          <label>Set Active Week</label>
+          <input type="number" class="form-control" id="newWeekNumber" min="1" placeholder="Week #" />
+        </div>
+        <div class="form-group" style="margin:0;flex:1;min-width:140px">
+          <label>Picks Allowed</label>
+          <select class="form-control" id="newWeekPicks">
+            <option value="1">1 pick</option>
+            <option value="2">2 picks</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="setCurrentWeek()">Set Week</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">🗓️ All Weeks</span>
+      </div>
+      <div id="allWeeksList"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">⚡ Mark Survivor Eliminated</span>
+        <span style="font-size:.8rem;color:var(--text-dim)">This automatically eliminates pool players who picked this cast member this week</span>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+        <div class="form-group" style="margin:0;flex:2;min-width:200px">
+          <label>Cast Member Voted Out</label>
+          <select class="form-control" id="eliminateCastSelect">
+            <option value="">— Select cast member —</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0;flex:1;min-width:120px">
+          <label>Week # Voted Out</label>
+          <input type="number" class="form-control" id="eliminateWeekNum" min="1" placeholder="Current" />
+        </div>
+        <button class="btn btn-danger" onclick="eliminateCastMember()">Mark Eliminated</button>
+      </div>
+      <div id="eliminateResult" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <!-- ── Cast Management ──────────────────────────────────────────────── -->
+  <div id="atab-cast" class="tab-panel">
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">➕ Add Cast Member</span>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+        <div class="form-group" style="margin:0;flex:2;min-width:200px">
+          <label>Name</label>
+          <input type="text" class="form-control" id="newCastName" placeholder="Full name…" />
+        </div>
+        <div class="form-group" style="margin:0;flex:1;min-width:150px">
+          <label>Tribe (optional)</label>
+          <input type="text" class="form-control" id="newCastTribe" placeholder="Tribe name…" />
+        </div>
+        <button class="btn btn-success" onclick="addCastMember()">Add</button>
+      </div>
+      <div id="addCastStatus" style="margin-top:10px"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">🌴 Cast Roster</span>
+        <button class="btn btn-secondary btn-sm" onclick="loadAdminData()">↺ Refresh</button>
+      </div>
+      <div id="castRosterList"></div>
+    </div>
+  </div>
+
+  <!-- ── Player Management ─────────────────────────────────────────────── -->
+  <div id="atab-players" class="tab-panel">
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">➕ Add Pool Player</span>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+        <div class="form-group" style="margin:0;flex:1;min-width:200px">
+          <label>Name</label>
+          <input type="text" class="form-control" id="newPlayerName" placeholder="Player name…" onkeydown="if(event.key==='Enter')addPlayer()" />
+        </div>
+        <button class="btn btn-success" onclick="addPlayer()">Add Player</button>
+      </div>
+      <div id="addPlayerStatus" style="margin-top:10px"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">👥 Pool Players</span>
+        <button class="btn btn-secondary btn-sm" onclick="loadAdminData()">↺ Refresh</button>
+      </div>
+      <div id="playersRosterList"></div>
+    </div>
+  </div>
+
+  <!-- ── Picks Management ──────────────────────────────────────────────── -->
+  <div id="atab-picks" class="tab-panel">
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">📋 All Picks</span>
+        <button class="btn btn-secondary btn-sm" onclick="loadAdminData()">↺ Refresh</button>
+      </div>
+      <div class="form-hint" style="margin-bottom:12px">You can delete picks here for corrections. Use the "Add Pick" form to add manual entries.</div>
+      <div id="allPicksList"></div>
+    </div>
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">➕ Add Pick Manually</span>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+        <div class="form-group" style="margin:0;flex:1;min-width:180px">
+          <label>Player</label>
+          <select class="form-control" id="manualPickPlayer"></select>
+        </div>
+        <div class="form-group" style="margin:0;flex:1;min-width:180px">
+          <label>Cast Member</label>
+          <select class="form-control" id="manualPickCast"></select>
+        </div>
+        <div class="form-group" style="margin:0;min-width:110px">
+          <label>Week #</label>
+          <input type="number" class="form-control" id="manualPickWeek" min="1" placeholder="Week" />
+        </div>
+        <button class="btn btn-primary" onclick="addManualPick()">Add Pick</button>
+      </div>
+      <div id="manualPickStatus" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <!-- ── Settings ─────────────────────────────────────────────────────── -->
+  <div id="atab-settings" class="tab-panel">
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">⚙️ Season Settings</span>
+      </div>
+      <div class="form-group">
+        <label>Season Name</label>
+        <input type="text" class="form-control" id="settingSeasonName" placeholder="e.g. Survivor 50" />
+      </div>
+      <div class="form-group">
+        <label>Subtitle / Tagline</label>
+        <input type="text" class="form-control" id="settingSubtitle" placeholder="e.g. Prediction Pool" />
+      </div>
+      <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+      <div id="settingsStatus" style="margin-top:12px"></div>
+    </div>
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">🔐 Change Admin Password</span>
+      </div>
+      <div class="form-group">
+        <label>New Password</label>
+        <input type="password" class="form-control" id="newAdminPw" placeholder="New password…" />
+      </div>
+      <button class="btn btn-danger" onclick="changePassword()">Change Password</button>
+      <div id="pwChangeStatus" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+</main>
+
+<script src="/js/admin.js"></script>
+</body>
+</html>
