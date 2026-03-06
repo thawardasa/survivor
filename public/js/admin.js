@@ -275,14 +275,31 @@ async function deleteCast(id, name) {
 /* ─── Players Tab ─────────────────────────────────────────────────────── */
 function renderPlayersTab() {
   const { gamePlayers } = adminData;
-  const active = gamePlayers.filter(p => p.is_active);
+  const active     = gamePlayers.filter(p =>  p.is_active);
   const eliminated = gamePlayers.filter(p => !p.is_active);
 
-  const rows = [...active, ...eliminated].map(p => `
+  const rows = [...active, ...eliminated].map(p => {
+    const photoHtml = p.photo_url
+      ? `<img src="${esc(p.photo_url)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;object-position:top;vertical-align:middle;margin-right:8px;border:2px solid var(--green);flex-shrink:0" alt="${esc(p.name)}">`
+      : `<span style="display:inline-flex;width:40px;height:40px;border-radius:50%;background:var(--surface2);align-items:center;justify-content:center;font-weight:700;color:var(--accent);font-size:.9rem;margin-right:8px;vertical-align:middle;flex-shrink:0">${p.name.charAt(0)}</span>`;
+    const info = [p.age ? p.age + ' yrs' : '', esc(p.hometown || '')].filter(Boolean).join(' · ');
+    return `
     <tr class="${p.is_active ? '' : 'eliminated-row'}">
-      <td><strong>${esc(p.name)}</strong></td>
-      <td>${p.is_active ? '🟢 In' : `💀 Out (Wk ${p.eliminated_week || '?'})`}</td>
-      <td style="display:flex;gap:6px;flex-wrap:wrap">
+      <td style="vertical-align:middle">
+        <div style="display:flex;align-items:center">
+          ${photoHtml}
+          <div>
+            <strong>${esc(p.name)}</strong>
+            ${info ? `<div style="font-size:.72rem;color:var(--text-dim)">${info}</div>` : ''}
+          </div>
+        </div>
+      </td>
+      <td>${p.is_active ? '🟢 In' : `💀 Out (Ep ${p.eliminated_week || '?'})`}</td>
+      <td style="white-space:nowrap">
+        <label class="btn btn-secondary btn-sm" style="cursor:pointer;display:inline-block;margin-bottom:4px">
+          📷 Photo
+          <input type="file" accept="image/*" style="display:none" onchange="uploadPlayerPhoto(${p.id}, this)">
+        </label>
         ${!p.is_active
           ? `<button class="btn btn-secondary btn-sm" onclick="restorePlayer(${p.id})">Restore</button>`
           : ''
@@ -290,16 +307,43 @@ function renderPlayersTab() {
         <button class="btn btn-danger btn-sm" onclick="deletePlayer(${p.id}, '${esc(p.name)}')">Delete</button>
       </td>
     </tr>
-  `).join('');
+  `}).join('');
 
   document.getElementById('playersRosterList').innerHTML = gamePlayers.length ? `
+    <p style="font-size:.8rem;color:var(--text-dim);margin-bottom:10px">
+      Click <strong>📷 Photo</strong> next to any player to upload their photo from your device.
+    </p>
     <div class="table-scroll">
       <table class="picks-table">
-        <thead><tr><th>Name</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Player</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
   ` : `<div class="empty-state"><div class="empty-icon">👥</div><p>No pool players added yet.</p></div>`;
+}
+
+async function uploadPlayerPhoto(playerId, input) {
+  const file = input.files[0];
+  if (!file) return;
+  showAdminAlert('info', '⏳ Uploading photo…');
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const result = await adminApi(`/api/admin/players/${playerId}/photo`, {
+        method: 'POST',
+        body: { data: e.target.result },
+      });
+      if (result.success) {
+        showAdminAlert('success', '✅ Photo uploaded!');
+        await loadAdminData();
+      } else {
+        showAdminAlert('error', result.message || 'Upload failed');
+      }
+    } catch (err) {
+      showAdminAlert('error', '❌ ' + err.message);
+    }
+  };
+  reader.readAsDataURL(file);
 }
 
 async function addPlayer() {

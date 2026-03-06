@@ -65,6 +65,13 @@ db.exec(`
   );
 `);
 
+// Migrate: add new columns to game_players
+for (const sql of [
+  'ALTER TABLE game_players ADD COLUMN photo_url TEXT DEFAULT ""',
+  'ALTER TABLE game_players ADD COLUMN age INTEGER',
+  'ALTER TABLE game_players ADD COLUMN hometown TEXT DEFAULT ""',
+]) { try { db.exec(sql); } catch (_) {} }
+
 // Migrate: add new columns if they don't exist yet (for existing DBs)
 for (const sql of [
   'ALTER TABLE cast_members ADD COLUMN age INTEGER',
@@ -136,28 +143,35 @@ for (const [name, tribe, age, hometown, wikipedia_slug, is_active, eliminated_we
 }
 
 // ─── Seed Pool Players ────────────────────────────────────────────────────────
-// From the prediction pool spreadsheet
+// Data from prediction pool spreadsheet
+// [name, is_active, eliminated_week, age, hometown]
 const playerSeed = [
-  // [name, is_active, eliminated_week]
-  ['Jenna',    1, null],
-  ['Marissa',  1, null],
-  ['Anna D',   1, null],
-  ['Greg',     1, null],
-  ['Jason',    1, null],
-  ['Mason',    1, null],
-  ['Fish',     1, null],
-  ['Emily',    1, null],
-  ['AT',       1, null],
-  ['Anna F',   1, null],
-  ['Michael',  1, null],
-  ['Natalie',  0, 1],   // Eliminated Ep1 — picked Kyle Fraser (med-evac)
+  ['Jenna',    1, null,  40, 'Robbinsville, NJ'],
+  ['Marissa',  1, null,  32, 'West Windsor, NJ'],
+  ['Anna D',   1, null,  32, 'Bensalem, PA'],
+  ['Greg',     1, null,  31, 'Huntingdon Valley, PA'],
+  ['Jason',    1, null,  38, 'West Windsor, NJ'],
+  ['Mason',    1, null,  31, 'St. Georges, DE'],
+  ['Fish',     1, null,  31, 'Hartsdale, NY'],
+  ['Emily',    1, null,  32, 'Allentown, PA'],
+  ['AT',       1, null,  31, 'Brentwood, TN'],
+  ['Anna F',   1, null,  31, 'Northfield, IL'],
+  ['Michael',  1, null,  31, 'West Windsor, NJ'],
+  ['Natalie',  0, 1,     32, 'Tacoma, WA'],  // Eliminated Ep1 — picked Kyle Fraser (med-evac)
 ];
 
 const insertPlayer = db.prepare(
-  'INSERT OR IGNORE INTO game_players (name, is_active, eliminated_week) VALUES (?, ?, ?)'
+  'INSERT OR IGNORE INTO game_players (name, is_active, eliminated_week, age, hometown) VALUES (?, ?, ?, ?, ?)'
 );
-for (const [name, is_active, eliminated_week] of playerSeed) {
-  insertPlayer.run(name, is_active, eliminated_week);
+const updatePlayerInfo = db.prepare(`
+  UPDATE game_players
+  SET age = COALESCE(age, ?),
+      hometown = CASE WHEN hometown = '' OR hometown IS NULL THEN ? ELSE hometown END
+  WHERE name = ?
+`);
+for (const [name, is_active, eliminated_week, age, hometown] of playerSeed) {
+  insertPlayer.run(name, is_active, eliminated_week, age, hometown);
+  updatePlayerInfo.run(age, hometown, name);
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -549,10 +563,11 @@ app.post('/api/admin/sync-wikipedia', requireAdmin, async (req, res) => {
 
 // ─── Player Management ────────────────────────────────────────────────────────
 app.post('/api/admin/players', requireAdmin, (req, res) => {
-  const { name } = req.body;
+  const { name, age, hometown } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
   try {
-    const r = db.prepare('INSERT INTO game_players (name) VALUES (?)').run(name.trim());
+    const r = db.prepare('INSERT INTO game_players (name, age, hometown) VALUES (?, ?, ?)')
+      .run(name.trim(), age || null, hometown?.trim() || '');
     res.json({ success: true, id: r.lastInsertRowid });
   } catch (err) {
     if (err.message.includes('UNIQUE')) return res.status(400).json({ error: 'Player already exists' });
@@ -570,6 +585,29 @@ app.delete('/api/admin/players/:id', requireAdmin, (req, res) => {
 app.post('/api/admin/players/:id/restore', requireAdmin, (req, res) => {
   db.prepare('UPDATE game_players SET is_active = 1, eliminated_week = NULL WHERE id = ?').run(req.params.id);
   res.json({ success: true });
+});
+
+// Upload a photo for a pool player (base64 data URL → saved as static file)
+app.post('/api/admin/players/:id/photo', requireAdmin, (req, res) => {
+  const { data } = req.body; // expects "data:image/jpeg;base64,..."
+  if (!data) return res.status(400).json({ error: 'No image data provided' });
+
+  const match = data.match(/^data:(image\/(?:jpeg|png|gif|webp));base64,(.+)$/);
+  if (!match) return res.status(400).json({ error: 'Invalid image format. Must be JPEG, PNG, GIF or WebP.' });
+
+  const [, mime, b64] = match;
+  const ext = mime.split('/')[1].replace('jpeg', 'jpg');
+  const filename = `player_${req.params.id}.${ext}`;
+  const filePath = path.join(__dirname, 'public', 'images', 'players', filename);
+
+  try {
+    fs.writeFileSync(filePath, Buffer.from(b64, 'base64'));
+    const photoUrl = `/images/players/${filename}`;
+    db.prepare('UPDATE game_players SET photo_url = ? WHERE id = ?').run(photoUrl, req.params.id);
+    res.json({ success: true, photo_url: photoUrl });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─── Week Management ──────────────────────────────────────────────────────────

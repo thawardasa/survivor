@@ -117,6 +117,19 @@ function renderOverviewTab(activePlayers, eliminatedPlayers, activeCast, elimina
   `;
 }
 
+function playerAvatarHtml(p) {
+  const initial = p.name.charAt(0).toUpperCase();
+  if (p.photo_url) {
+    return `
+      <div class="player-avatar-wrap">
+        <img class="player-photo" src="${esc(p.photo_url)}" alt="${esc(p.name)}" loading="lazy"
+             onerror="this.style.display='none';this.nextSibling.style.display='flex'">
+        <div class="player-avatar-initial" style="display:none">${initial}</div>
+      </div>`;
+  }
+  return `<div class="player-avatar-wrap"><div class="player-avatar-initial">${initial}</div></div>`;
+}
+
 function renderPlayerSection(title, players, allPicks, currentWeek, isEliminated) {
   if (!players.length) return '';
 
@@ -124,25 +137,27 @@ function renderPlayerSection(title, players, allPicks, currentWeek, isEliminated
     const currentPick = allPicks.find(pk =>
       pk.game_player_id === p.id && pk.week_number === currentWeek?.week_number
     );
-    const elimWeek = p.eliminated_week ? `Eliminated week ${p.eliminated_week}` : '';
 
     let pickHtml = '';
     if (currentWeek && !currentWeek.completed) {
       pickHtml = currentPick
-        ? `<div class="player-pick">Week ${currentWeek.week_number}: <span class="pick-name">${esc(currentPick.cast_name)}</span></div>`
+        ? `<div class="player-pick">Ep ${currentWeek.week_number}: <span class="pick-name">${esc(currentPick.cast_name)}</span></div>`
         : `<div class="player-pick" style="color:var(--text-dim);font-style:italic">No pick yet</div>`;
     } else if (currentPick) {
       const cls = currentPick.cast_is_active ? 'safe' : 'bad-pick';
-      pickHtml = `<div class="player-pick">Week ${currentWeek.week_number}: <span class="${cls} pick-name">${esc(currentPick.cast_name)}</span></div>`;
+      pickHtml = `<div class="player-pick">Ep ${currentWeek.week_number}: <span class="${cls} pick-name">${esc(currentPick.cast_name)}</span></div>`;
     }
+
+    const infoHtml = (p.age || p.hometown)
+      ? `<div class="player-info">${[p.age ? p.age + ' yrs' : '', esc(p.hometown || '')].filter(Boolean).join(' · ')}</div>` : '';
 
     return `
       <div class="player-card ${isEliminated ? 'eliminated' : 'active'}">
-        <span class="survivor-badge">${isEliminated ? 'OUT' : 'IN'}</span>
+        ${playerAvatarHtml(p)}
         <div class="player-name">${esc(p.name)}</div>
+        ${infoHtml}
         ${pickHtml}
-        ${isEliminated ? `<div class="eliminated-badge">ELIMINATED</div>` : ''}
-        ${elimWeek ? `<div class="week-badge">${elimWeek}</div>` : ''}
+        ${isEliminated ? `<div class="eliminated-badge">OUT Ep ${p.eliminated_week || '?'}</div>` : ''}
       </div>
     `;
   }).join('');
@@ -253,7 +268,13 @@ function renderPicksTable(gamePlayers, allWeeks, allPicks, castMembers) {
     const statusDot = `<span class="player-status-dot ${player.is_active ? 'active' : 'eliminated'}"></span>`;
     const status = player.is_active
       ? `${statusDot}In`
-      : `${statusDot}Out Wk ${player.eliminated_week || '?'}`;
+      : `${statusDot}Out Ep ${player.eliminated_week || '?'}`;
+
+    const photoThumb = player.photo_url
+      ? `<img src="${esc(player.photo_url)}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;object-position:top;vertical-align:middle;margin-right:6px" alt="${esc(player.name)}">`
+      : `<span style="display:inline-flex;width:28px;height:28px;border-radius:50%;background:var(--surface2);align-items:center;justify-content:center;font-weight:700;color:var(--accent);font-size:.75rem;margin-right:6px;vertical-align:middle;flex-shrink:0">${player.name.charAt(0)}</span>`;
+    const playerInfo = (player.age || player.hometown)
+      ? `<span style="font-size:.68rem;color:var(--text-dim);display:block">${[player.age ? player.age + ' yrs' : '', esc(player.hometown || '')].filter(Boolean).join(' · ')}</span>` : '';
 
     const cells = weeks.map(w => {
       const pick = pickMap[player.id]?.[w.week_number];
@@ -270,7 +291,7 @@ function renderPicksTable(gamePlayers, allWeeks, allPicks, castMembers) {
     }).join('');
 
     return `<tr class="${rowClass}">
-      <td><strong>${esc(player.name)}</strong></td>
+      <td style="white-space:nowrap">${photoThumb}<strong>${esc(player.name)}</strong>${playerInfo}</td>
       ${cells}
       <td>${status}</td>
     </tr>`;
