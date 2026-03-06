@@ -179,6 +179,8 @@ function castCardHtml(c, elim) {
     ? `<div class="cast-tribe tribe-badge ${tribeClass}">${esc(c.tribe)}</div>` : '';
   const infoHtml = (c.age || c.hometown)
     ? `<div class="cast-info">${[c.age ? c.age + ' yrs' : '', esc(c.hometown || '')].filter(Boolean).join(' · ')}</div>` : '';
+  const occupHtml = c.occupation
+    ? `<div class="cast-info" style="font-style:italic">${esc(c.occupation)}</div>` : '';
   const weekHtml = c.eliminated_week ? `<div class="cast-week">Ep ${c.eliminated_week}</div>` : '';
   const photoHtml = c.photo_url
     ? `<img class="cast-photo" src="${esc(c.photo_url)}" alt="${esc(c.name)}" loading="lazy" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`
@@ -193,6 +195,7 @@ function castCardHtml(c, elim) {
       <div class="cast-name">${esc(c.name)}</div>
       ${tribeHtml}
       ${infoHtml}
+      ${occupHtml}
       <div class="cast-status">${elim ? '🪦 Voted Out' : '✅ Active'}</div>
       ${weekHtml}
     </div>
@@ -236,30 +239,31 @@ function renderPicksTable(gamePlayers, allWeeks, allPicks, castMembers) {
     return `<div class="empty-state"><div class="empty-icon">📋</div><p>No players in the pool yet.</p></div>`;
   }
 
-  // Sort weeks
+  // Build cast lookup by id for super survivor resolution
+  const castById = {};
+  for (const c of castMembers) castById[c.id] = c;
+
   const weeks = [...allWeeks].sort((a, b) => a.week_number - b.week_number);
   if (!weeks.length) {
-    return `<div class="empty-state"><div class="empty-icon">📅</div><p>No weeks have been set up yet.</p></div>`;
+    return `<div class="empty-state"><div class="empty-icon">📅</div><p>No weeks set up yet.</p></div>`;
   }
 
-  // Sort players: active first, then by name
   const sortedPlayers = [...gamePlayers].sort((a, b) => {
     if (a.is_active !== b.is_active) return b.is_active - a.is_active;
     return a.name.localeCompare(b.name);
   });
 
-  // Build a lookup: picks[playerId][week] = pick
+  // Build lookup: picks[playerId][week] = pick
   const pickMap = {};
   for (const pk of allPicks) {
     if (!pickMap[pk.game_player_id]) pickMap[pk.game_player_id] = {};
     pickMap[pk.game_player_id][pk.week_number] = pk;
   }
 
-  const colSpan = weeks.length;
-
   let thead = `<tr>
     <th>Player</th>
-    ${weeks.map(w => `<th>Wk ${w.week_number}${w.picks_allowed > 1 ? ` <small>(×${w.picks_allowed})</small>` : ''}</th>`).join('')}
+    <th class="ss-col">🏆 Super<br>Survivor</th>
+    ${weeks.map(w => `<th>Ep ${w.week_number}${w.picks_allowed > 1 ? `<br><small style="font-weight:400;color:var(--text-dim)">×${w.picks_allowed}</small>` : ''}</th>`).join('')}
     <th>Status</th>
   </tr>`;
 
@@ -271,10 +275,17 @@ function renderPicksTable(gamePlayers, allWeeks, allPicks, castMembers) {
       : `${statusDot}Out Ep ${player.eliminated_week || '?'}`;
 
     const photoThumb = player.photo_url
-      ? `<img src="${esc(player.photo_url)}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;object-position:top;vertical-align:middle;margin-right:6px" alt="${esc(player.name)}">`
-      : `<span style="display:inline-flex;width:28px;height:28px;border-radius:50%;background:var(--surface2);align-items:center;justify-content:center;font-weight:700;color:var(--accent);font-size:.75rem;margin-right:6px;vertical-align:middle;flex-shrink:0">${player.name.charAt(0)}</span>`;
+      ? `<img src="${esc(player.photo_url)}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;object-position:top;vertical-align:middle;margin-right:6px;flex-shrink:0" alt="${esc(player.name)}">`
+      : `<span style="display:inline-flex;width:32px;height:32px;border-radius:50%;background:var(--surface2);align-items:center;justify-content:center;font-weight:700;color:var(--accent);font-size:.8rem;margin-right:6px;vertical-align:middle;flex-shrink:0">${player.name.charAt(0)}</span>`;
     const playerInfo = (player.age || player.hometown)
-      ? `<span style="font-size:.68rem;color:var(--text-dim);display:block">${[player.age ? player.age + ' yrs' : '', esc(player.hometown || '')].filter(Boolean).join(' · ')}</span>` : '';
+      ? `<span style="font-size:.65rem;color:var(--text-dim);display:block;line-height:1.2">${[player.age ? player.age + ' yrs' : '', esc(player.hometown || '')].filter(Boolean).join(' · ')}</span>` : '';
+
+    // Super Survivor cell
+    const ssCast = player.super_survivor_cast_id ? castById[player.super_survivor_cast_id] : null;
+    const ssName = ssCast ? ssCast.name.split(' ')[0] : '—'; // first name only
+    const ssActive = ssCast ? ssCast.is_active : null;
+    const ssCls = ssCast ? (ssActive ? 'ss-active' : 'ss-out') : 'ss-empty';
+    const ssCell = `<td class="ss-col"><span class="ss-pick ${ssCls}">${esc(ssName)}</span></td>`;
 
     const cells = weeks.map(w => {
       const pick = pickMap[player.id]?.[w.week_number];
@@ -286,12 +297,15 @@ function renderPicksTable(gamePlayers, allWeeks, allPicks, castMembers) {
       const textClass = w.completed ? (isVotedOut ? 'voted-out' : 'safe') : 'pending';
       return `<td><span class="pick-cell">
         <span class="dot ${dotClass}"></span>
-        <span class="pick-text ${textClass}">${esc(pick.cast_name)}</span>
+        <span class="pick-text ${textClass}">${esc(pick.cast_name.split(' ')[0])}</span>
       </span></td>`;
     }).join('');
 
     return `<tr class="${rowClass}">
-      <td style="white-space:nowrap">${photoThumb}<strong>${esc(player.name)}</strong>${playerInfo}</td>
+      <td style="white-space:nowrap;min-width:130px">
+        <div style="display:flex;align-items:center">${photoThumb}<div><strong>${esc(player.name)}</strong>${playerInfo}</div></div>
+      </td>
+      ${ssCell}
       ${cells}
       <td>${status}</td>
     </tr>`;
@@ -300,11 +314,11 @@ function renderPicksTable(gamePlayers, allWeeks, allPicks, castMembers) {
   return `
     <div class="section">
       <div class="section-header">
-        <span class="section-title">📋 Picks by Week</span>
+        <span class="section-title">📋 Picks by Episode</span>
         <span style="font-size:.78rem;color:var(--text-dim)">
-          <span class="dot safe" style="width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block"></span> Safe &nbsp;
-          <span class="dot voted-out" style="width:8px;height:8px;border-radius:50%;background:var(--red);display:inline-block"></span> Voted Out &nbsp;
-          <span class="dot pending" style="width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block"></span> Pending
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;vertical-align:middle"></span> Safe &nbsp;
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--red);display:inline-block;vertical-align:middle"></span> Voted Out &nbsp;
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block;vertical-align:middle"></span> Pending
         </span>
       </div>
       <div class="table-scroll">

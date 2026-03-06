@@ -188,15 +188,27 @@ function renderCastTab() {
 
   const rows = [...active, ...eliminated].map(c => {
     const photoHtml = c.photo_url
-      ? `<img src="${esc(c.photo_url)}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px" alt="${esc(c.name)}">`
-      : `<span style="display:inline-block;width:32px;height:32px;border-radius:50%;background:var(--surface2);text-align:center;line-height:32px;font-weight:700;color:var(--accent);margin-right:6px;vertical-align:middle">${c.name.charAt(0)}</span>`;
-    const info = [c.age ? c.age + ' yrs' : '', esc(c.hometown || '')].filter(Boolean).join(' · ');
+      ? `<img src="${esc(c.photo_url)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;object-position:top;vertical-align:middle;margin-right:8px;border:2px solid var(--accent);flex-shrink:0" alt="${esc(c.name)}">`
+      : `<span style="display:inline-flex;width:40px;height:40px;border-radius:50%;background:var(--surface2);align-items:center;justify-content:center;font-weight:700;color:var(--accent);font-size:.9rem;margin-right:8px;flex-shrink:0">${c.name.charAt(0)}</span>`;
+    const info = [c.age ? c.age + ' yrs' : '', esc(c.hometown || ''), esc(c.occupation || '')].filter(Boolean).join(' · ');
     return `
     <tr class="${c.is_active ? '' : 'eliminated-row'}">
-      <td>${photoHtml}<strong>${esc(c.name)}</strong>${info ? `<br><small style="color:var(--text-dim)">${info}</small>` : ''}</td>
+      <td style="vertical-align:middle">
+        <div style="display:flex;align-items:center">
+          ${photoHtml}
+          <div>
+            <strong>${esc(c.name)}</strong>
+            ${info ? `<div style="font-size:.7rem;color:var(--text-dim);margin-top:1px">${info}</div>` : ''}
+          </div>
+        </div>
+      </td>
       <td>${esc(c.tribe) || '<span style="color:var(--text-dim)">—</span>'}</td>
       <td>${c.is_active ? '✅ Active' : `🪦 Out (Ep ${c.eliminated_week || '?'})`}</td>
-      <td style="display:flex;gap:6px;flex-wrap:wrap">
+      <td style="white-space:nowrap">
+        <label class="btn btn-secondary btn-sm" style="cursor:pointer;display:inline-block;margin-bottom:4px">
+          📷 Photo
+          <input type="file" accept="image/*" style="display:none" onchange="uploadCastPhoto(${c.id}, this)">
+        </label>
         ${c.is_active
           ? `<button class="btn btn-danger btn-sm" onclick="quickEliminateCast(${c.id}, '${esc(c.name)}')">Vote Out</button>`
           : `<button class="btn btn-secondary btn-sm" onclick="restoreCast(${c.id})">Restore</button>`
@@ -207,6 +219,9 @@ function renderCastTab() {
   `}).join('');
 
   document.getElementById('castRosterList').innerHTML = castMembers.length ? `
+    <p style="font-size:.8rem;color:var(--text-dim);margin-bottom:10px">
+      Click <strong>📷 Photo</strong> next to any cast member to upload their headshot from your device.
+    </p>
     <div class="table-scroll">
       <table class="picks-table">
         <thead><tr><th>Name</th><th>Tribe</th><th>Status</th><th>Actions</th></tr></thead>
@@ -214,6 +229,30 @@ function renderCastTab() {
       </table>
     </div>
   ` : `<div class="empty-state"><div class="empty-icon">🌴</div><p>No cast members added yet.</p></div>`;
+}
+
+async function uploadCastPhoto(castId, input) {
+  const file = input.files[0];
+  if (!file) return;
+  showAdminAlert('info', '⏳ Uploading photo…');
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const result = await adminApi(`/api/admin/cast/${castId}/photo`, {
+        method: 'POST',
+        body: { data: e.target.result },
+      });
+      if (result.success) {
+        showAdminAlert('success', '✅ Cast photo uploaded!');
+        await loadAdminData();
+      } else {
+        showAdminAlert('error', result.message || 'Upload failed');
+      }
+    } catch (err) {
+      showAdminAlert('error', '❌ ' + err.message);
+    }
+  };
+  reader.readAsDataURL(file);
 }
 
 async function addCastMember() {

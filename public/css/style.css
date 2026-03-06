@@ -468,8 +468,32 @@ a:hover { text-decoration: underline; }
 .pick-cell .dot.empty { background: var(--border); }
 
 .pick-text.voted-out { text-decoration: line-through; color: var(--red); }
-.pick-text.safe { color: var(--green); }
+.pick-text.safe { color: var(--green); font-weight: 600; }
 .pick-text.pending { color: var(--accent); }
+
+/* Super Survivor column */
+.ss-col { text-align: center !important; min-width: 80px; }
+
+.ss-pick {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.ss-pick.ss-active {
+  background: rgba(233,93,162,0.2);
+  color: #e95da2;
+  border: 1px solid rgba(233,93,162,0.4);
+}
+.ss-pick.ss-out {
+  background: rgba(192,57,43,0.15);
+  color: var(--red);
+  border: 1px solid rgba(192,57,43,0.3);
+  text-decoration: line-through;
+}
+.ss-pick.ss-empty { color: var(--text-dim); }
 
 .player-status-dot {
   width: 8px;
