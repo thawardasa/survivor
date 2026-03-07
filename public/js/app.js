@@ -123,7 +123,7 @@ function renderPage() {
 
   const main = document.getElementById('mainContent');
   main.innerHTML = `
-    ${renderStatusBar(currentWeek, gamePlayers, activeCast)}
+    ${renderStatusBar(currentWeek, gamePlayers, activeCast, castMembers)}
     <div class="tab-bar">
       <button class="tab-btn active" onclick="switchTab('standings', this)">🏆 Standings</button>
       <button class="tab-btn" onclick="switchTab('picks', this)">📋 All Picks</button>
@@ -145,35 +145,138 @@ function renderPage() {
 }
 
 /* ─── Status Bar ──────────────────────────────────────────────────────── */
-function renderStatusBar(currentWeek, gamePlayers, activeCast) {
+function renderStatusBar(currentWeek, gamePlayers, activeCast, allCast) {
   const activePlayers = gamePlayers.filter(p => p.is_active);
   const eliminatedPlayers = gamePlayers.filter(p => !p.is_active);
+  const totalCast = allCast.length;
+  const optionsLeft = activeCast.length;
   const weekStatus = currentWeek?.completed
     ? `<span style="color:var(--text-dim);font-size:.8rem">Results in</span>`
-    : `<span style="color:var(--green);font-size:.8rem">Picks open</span>`;
+    : `<span style="color:var(--green);font-size:.8rem">Picks open!</span>`;
 
   return `
     <div class="status-bar">
       <div class="status-card">
-        <div class="label">Current Week</div>
+        <div class="label">Episode</div>
         <div class="value">${currentWeek?.week_number ?? '—'}</div>
         <div class="sub">${weekStatus}</div>
       </div>
       <div class="status-card">
-        <div class="label">Picks / Week</div>
+        <div class="label">Picks / Episode</div>
         <div class="value">${currentWeek?.picks_allowed ?? '—'}</div>
         <div class="sub">per player</div>
       </div>
       <div class="status-card">
-        <div class="label">Players In</div>
+        <div class="label">Pool Players</div>
         <div class="value" style="color:var(--green)">${activePlayers.length}</div>
-        <div class="sub">${eliminatedPlayers.length} eliminated</div>
+        <div class="sub">${eliminatedPlayers.length > 0 ? eliminatedPlayers.length + ' knocked out' : 'all still in!'}</div>
       </div>
-      <div class="status-card">
-        <div class="label">Cast Remaining</div>
-        <div class="value" style="color:var(--accent)">${activeCast.length}</div>
-        <div class="sub">still in the game</div>
+      <div class="status-card" title="${totalCast - optionsLeft} already voted out">
+        <div class="label">🌴 Options Left</div>
+        <div class="value" style="color:var(--accent)">${optionsLeft}</div>
+        <div class="sub">of ${totalCast} still competing</div>
       </div>
+    </div>
+  `;
+}
+
+/* ─── Insights Bar ────────────────────────────────────────────────────── */
+function renderInsights(playerStats, allPicks, castMembers) {
+  if (!allPicks.length) return '';
+
+  const castById = {};
+  for (const c of castMembers) castById[c.id] = c;
+
+  // Count picks per cast member
+  const pickCounts = {};
+  for (const pk of allPicks) {
+    const id = pk.cast_member_id;
+    if (!pickCounts[id]) pickCounts[id] = { name: pk.cast_name, total: 0, alive: 0 };
+    pickCounts[id].total++;
+    if (pk.cast_is_active) pickCounts[id].alive++;
+  }
+
+  // Overall pick survival rate
+  const totalPicks = allPicks.length;
+  const alivePicks = allPicks.filter(pk => pk.cast_is_active).length;
+  const survivalRate = Math.round((alivePicks / totalPicks) * 100);
+
+  // Most-picked active castaway (fan fave)
+  const hotPick = Object.values(pickCounts)
+    .filter(p => { const c = Object.values(castById).find(x => x.name === p.name); return c?.is_active; })
+    .sort((a, b) => b.total - a.total)[0];
+
+  // Most-picked eliminated castaway (biggest bust)
+  const bust = Object.values(pickCounts)
+    .filter(p => { const c = Object.values(castById).find(x => x.name === p.name); return c && !c.is_active; })
+    .sort((a, b) => b.total - a.total)[0];
+
+  // Pool players in danger (0 alive weekly picks, still active in pool)
+  const activeStats = playerStats.filter(p => p.is_active);
+  const dangerCount = activeStats.filter(p => p.alivePicks === 0).length;
+
+  // Leader gap
+  const sorted = [...activeStats].sort((a, b) => b.totalAlive - a.totalAlive);
+  const leaderGap = sorted.length >= 2 ? sorted[0].totalAlive - sorted[1].totalAlive : 0;
+
+  const cards = [];
+
+  cards.push({
+    icon: '📊',
+    label: 'Pick Survival',
+    value: `${survivalRate}%`,
+    sub: `${alivePicks} of ${totalPicks} picks still alive`,
+    color: survivalRate >= 50 ? 'var(--green)' : 'var(--coral)',
+  });
+
+  if (hotPick) {
+    cards.push({
+      icon: '🔥',
+      label: "Fan Fave",
+      value: hotPick.name.split(' ')[0],
+      sub: `picked ${hotPick.total}x, still kicking`,
+      color: 'var(--accent)',
+    });
+  }
+
+  if (bust) {
+    cards.push({
+      icon: '💀',
+      label: 'Biggest Bust',
+      value: bust.name.split(' ')[0],
+      sub: `${bust.total} players picked 'em — gone`,
+      color: 'var(--red)',
+    });
+  }
+
+  if (dangerCount > 0) {
+    cards.push({
+      icon: '⚠️',
+      label: 'Danger Zone',
+      value: `${dangerCount}`,
+      sub: `player${dangerCount > 1 ? 's' : ''} with zero alive picks`,
+      color: 'var(--gold)',
+    });
+  } else if (leaderGap > 0 && sorted.length) {
+    cards.push({
+      icon: '👑',
+      label: 'Leading by',
+      value: `+${leaderGap}`,
+      sub: `${sorted[0].name.split(' ')[0]} is out front`,
+      color: 'var(--gold)',
+    });
+  }
+
+  return `
+    <div class="insights-bar">
+      ${cards.map(c => `
+        <div class="insight-card">
+          <div class="insight-icon">${c.icon}</div>
+          <div class="insight-label">${c.label}</div>
+          <div class="insight-value" style="color:${c.color}">${esc(c.value)}</div>
+          <div class="insight-sub">${c.sub}</div>
+        </div>
+      `).join('')}
     </div>
   `;
 }
@@ -207,10 +310,11 @@ function renderStandingsTab(gamePlayers, castMembers, allPicks, allWeeks, curren
   const eliminatedSorted = sorted.filter(p => !p.is_active);
 
   return `
+    ${renderInsights(playerStats, allPicks, castMembers)}
     <div class="section">
       <div class="section-header">
         <span class="section-title">🏆 Standings</span>
-        <span style="font-size:.78rem;color:var(--text-dim)">Ranked by active survivor picks remaining</span>
+        <span style="font-size:.78rem;color:var(--text-dim)">Ranked by alive picks</span>
       </div>
       <div class="standings-grid">
         ${activeSorted.map((p, i) => renderStandingsCard(p, i + 1, completedWeeks, castById, false)).join('')}
