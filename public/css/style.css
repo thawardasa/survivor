@@ -687,22 +687,32 @@ a:hover { text-decoration: underline; }
 /* ─── Standings Grid ─────────────────────────────────────────────────── */
 .standings-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+  gap: 12px;
+}
+
+/* Countdown card pulse when live */
+.countdown-card.live .countdown-value {
+  color: var(--red) !important;
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .5; }
 }
 
 .standings-card {
   background: var(--surface);
   border: 2px solid var(--border);
-  border-radius: 16px;
-  padding: 18px 14px 14px;
+  border-radius: 14px;
+  padding: 14px 12px 12px;
   position: relative;
   text-align: center;
   transition: border-color 0.15s, transform 0.18s, box-shadow 0.18s;
   box-shadow: 0 2px 10px rgba(0,0,0,0.06);
 }
 
-.standings-card:hover { border-color: var(--teal); transform: translateY(-4px); box-shadow: 0 10px 30px rgba(0,180,216,0.18); }
+.standings-card:hover { border-color: var(--teal); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,180,216,0.18); }
 .standings-card.active { border-left: 4px solid var(--green); }
 .standings-card.eliminated { opacity: 0.5; border-style: dashed; }
 .standings-card.eliminated:hover { transform: none; box-shadow: none; }
@@ -745,14 +755,14 @@ a:hover { text-decoration: underline; }
 }
 
 .standings-avatar-wrap {
-  width: 76px;
-  height: 76px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   overflow: hidden;
-  margin: 22px auto 10px;
+  margin: 20px auto 8px;
   border: 3px solid var(--border);
   background: var(--surface2);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.10);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
 }
 .standings-card.active .standings-avatar-wrap { border-color: var(--green); box-shadow: 0 0 0 4px rgba(46,158,87,0.2); }
 .standings-card.eliminated .standings-avatar-wrap { border-color: var(--red-dim); }
@@ -766,22 +776,37 @@ a:hover { text-decoration: underline; }
 
 .standings-name {
   font-weight: 800;
-  font-size: .95rem;
-  margin-bottom: 2px;
+  font-size: .9rem;
+  margin-bottom: 4px;
   color: var(--text);
+  line-height: 1.2;
 }
 
-.standings-info {
-  font-size: .68rem;
-  color: var(--text-dim);
-  margin-bottom: 10px;
+.options-left-pill {
+  display: inline-block;
+  font-size: .65rem;
+  font-weight: 700;
+  background: rgba(0,180,216,.12);
+  color: var(--accent2);
+  border: 1.5px solid rgba(0,180,216,.28);
+  border-radius: 10px;
+  padding: 2px 8px;
+  margin-bottom: 6px;
 }
 
 .picks-summary {
   border-top: 1.5px solid var(--border);
-  margin-top: 8px;
-  padding-top: 8px;
+  margin-top: 6px;
+  padding-top: 6px;
   text-align: left;
+}
+
+.recent-pick-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 3px;
 }
 
 .pick-row {
@@ -793,11 +818,13 @@ a:hover { text-decoration: underline; }
 }
 
 .pick-label {
-  font-size: .68rem;
+  font-size: .65rem;
   color: var(--text-dim);
   white-space: nowrap;
   flex-shrink: 0;
-  font-weight: 600;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
 }
 
 .weekly-pick {
@@ -984,7 +1011,7 @@ a:hover { text-decoration: underline; }
 
   .player-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
   .cast-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
-  .standings-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+  .standings-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
 
   .tab-btn { padding: 8px 12px; font-size: 0.75rem; }
 
